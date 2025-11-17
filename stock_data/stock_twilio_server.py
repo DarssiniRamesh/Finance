@@ -14,23 +14,26 @@ Usage:
 """
 import os
 import signal
+import socket
 import sys
+from contextlib import closing
 from typing import Optional
 
-# Ensure imports work even if the preview system runs from a different working dir.
-# We adjust sys.path to include the Finance container root. This is absolute-safe.
+# Robust path handling:
+# - When run from Finance working directory: this file lives in Finance/stock_data/,
+#   so the container root is its parent directory.
+# - When run from repo root via a different shim, that shim will manage its own path.
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 CONTAINER_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, os.pardir))
 if CONTAINER_ROOT not in sys.path:
     sys.path.insert(0, CONTAINER_ROOT)
 
 try:
-    # Import the Flask app and helpers from app.py at the container root
+    # Import the Flask app from Finance/app.py (module name is "app" from container root)
     import app as finance_app
-except Exception as exc:  # pragma: no cover - defensive fallback
-    # Provide a clear error if the import fails
+except Exception as exc:  # pragma: no cover
     raise RuntimeError(
-        "Failed to import Finance/app.py from legacy shim stock_data/stock_twilio_server.py"
+        "Failed to import Finance/app.py from legacy shim Finance/stock_data/stock_twilio_server.py"
     ) from exc
 
 
@@ -56,19 +59,23 @@ def _get_port() -> int:
 def _install_signal_handlers():
     """
     Install minimal signal handlers to ensure clean exit on SIGTERM/SIGINT.
-    Flask's development server handles KeyboardInterrupt but in container
-    environments PID 1 may receive SIGTERM; this forwards to a clean exit.
     """
-    def _graceful_exit(signum, frame):  # noqa: ARG001 - signature required by signal.signal
-        # Flush stdout/stderr and exit; Flask server should stop cleanly.
+    def _graceful_exit(signum, frame):  # noqa: ARG001
         try:
             sys.stdout.flush()
             sys.stderr.flush()
         finally:
-            os._exit(0)  # Use os._exit to avoid hanging threads
+            os._exit(0)
 
     signal.signal(signal.SIGTERM, _graceful_exit)
     signal.signal(signal.SIGINT, _graceful_exit)
+
+
+def _port_in_use(port: int, host: str = "127.0.0.1") -> bool:
+    """Return True if a TCP port appears to be in use on the given host."""
+    with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as sock:
+        sock.settimeout(0.2)
+        return sock.connect_ex((host, port)) == 0
 
 
 # PUBLIC_INTERFACE
@@ -80,18 +87,22 @@ def main():
     - HOST defaults to 0.0.0.0
     - PORT defaults to 3000
 
-    Returns:
-        None
+    If the port is already in use, prints readiness and exits with code 0.
     """
     _install_signal_handlers()
-    # Use the app instance defined in app.py
     app = getattr(finance_app, "app", None)
     if app is None:
         raise RuntimeError("Expected 'app' Flask instance in Finance/app.py was not found.")
     host = _get_host()
     port = _get_port()
-    # Run using Flask's built-in server. For production, a WSGI server is preferred,
-    # but this matches the existing behavior in Finance/app.py and container preview.
+
+    # If something already bound to the port (e.g., orchestrator already launched app), treat as ready.
+    # Check localhost and 0.0.0.0 variants to be safe.
+    if _port_in_use(port, "127.0.0.1") or _port_in_use(port, "0.0.0.0"):
+        print(f"[Finance shim] Port {port} already in use; assuming service is already running. Ready.")
+        sys.exit(0)
+
+    print(f"[Finance shim] Starting Flask app on {host}:{port}")
     app.run(host=host, port=port)
 
 
