@@ -6,7 +6,7 @@ This is a minimal Flask entrypoint to ensure the Finance backend starts and bind
 
 - The Procfile configures the preview/orchestrator to run: `web: bash start.sh`.
 - `start.sh` launches the service via `python app.py`, which binds to `HOST`:`PORT` (defaults: `0.0.0.0:3000`).
-- Legacy script `stock_data/stock_twilio_server.py` is no longer used.
+- Legacy script `stock_data/stock_twilio_server.py` is no longer used and any orchestrator manifests should not reference it. The correct startup is `bash start.sh` or `python app.py`.
 
 ## Run locally
 
