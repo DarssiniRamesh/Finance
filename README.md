@@ -2,6 +2,12 @@
 
 This is a minimal Flask entrypoint to ensure the Finance backend starts and binds to `0.0.0.0:3000`.
 
+## Startup behavior
+
+- The Procfile configures the preview/orchestrator to run: `web: bash start.sh`.
+- `start.sh` launches the service via `python app.py`, which binds to `HOST`:`PORT` (defaults: `0.0.0.0:3000`).
+- Legacy script `stock_data/stock_twilio_server.py` is no longer used.
+
 ## Run locally
 
 1. Create/activate a virtual environment (optional).
@@ -9,9 +15,11 @@ This is a minimal Flask entrypoint to ensure the Finance backend starts and bind
 
    pip install -r requirements.txt
 
-3. Start the server:
+3. Start the server (either):
 
    python app.py
+   # or
+   bash start.sh
 
 The server binds to `0.0.0.0:3000` by default. You can override with:
 
