@@ -17,9 +17,8 @@ import signal
 import sys
 from typing import Optional
 
-# Import the Flask app object from the canonical entrypoint
-# Using relative import within the Finance package context is not guaranteed,
-# so we adjust sys.path to include the container root for safety.
+# Ensure imports work even if the preview system runs from a different working dir.
+# We adjust sys.path to include the Finance container root. This is absolute-safe.
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 CONTAINER_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, os.pardir))
 if CONTAINER_ROOT not in sys.path:
@@ -60,7 +59,7 @@ def _install_signal_handlers():
     Flask's development server handles KeyboardInterrupt but in container
     environments PID 1 may receive SIGTERM; this forwards to a clean exit.
     """
-    def _graceful_exit(signum, frame):
+    def _graceful_exit(signum, frame):  # noqa: ARG001 - signature required by signal.signal
         # Flush stdout/stderr and exit; Flask server should stop cleanly.
         try:
             sys.stdout.flush()

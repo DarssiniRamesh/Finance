@@ -1,2 +1,3 @@
 # Minimal dependencies required to start the Finance Flask backend.
 Flask>=2.2,<3.0
+gunicorn>=20.1
